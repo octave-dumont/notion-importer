@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Notion Importer — HEC IA Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0a0a0a;
+      --surface:   #111111;
+      --border:    #222222;
+      --border-hi: #333333;
+      --text:      #f5f5f5;
+      --muted:     #666666;
+      --accent:    #00c896;
+      --accent-dim:#00c89620;
+      --err:       #ff4d4d;
+      --err-dim:   #ff4d4d18;
+      --warn:      #f5a623;
+      --warn-dim:  #f5a62318;
+      --radius:    12px;
+      --mono:      'Geist Mono', monospace;
+      --sans:      'Geist', sans-serif;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    .shell { min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* Header */
+    header { border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--bg); z-index: 10; }
+    .logo { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 13px; color: var(--text); letter-spacing: 0.02em; }
+    .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 2.5s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+    .badge { font-family: var(--mono); font-size: 11px; color: var(--muted); border: 1px solid var(--border); padding: 2px 8px; border-radius: 20px; }
+
+    /* Danger zone button top right */
+    .btn-danger-sm { background: transparent; border: 1px solid var(--err); color: var(--err); border-radius: 6px; padding: 5px 12px; font-family: var(--sans); font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.15s; }
+    .btn-danger-sm:hover { background: var(--err-dim); }
+
+    main { flex: 1; max-width: 720px; margin: 0 auto; width: 100%; padding: 64px 24px 80px; }
+
+    .hero { text-align: center; margin-bottom: 56px; animation: fadeUp 0.5s ease both; }
+    .hero h1 { font-size: 32px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.2; margin-bottom: 12px; background: linear-gradient(135deg,#ffffff 0%,#888888 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero p { color: var(--muted); font-size: 15px; max-width: 440px; margin: 0 auto; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+
+    /* Cards */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; animation: fadeUp 0.5s ease both; }
+    .card + .card { margin-top: 16px; }
+    .card:nth-child(2){animation-delay:.05s} .card:nth-child(3){animation-delay:.1s} .card:nth-child(4){animation-delay:.15s}
+    .card-label { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .card-label::after { content:''; flex:1; height:1px; background: var(--border); }
+
+    /* Inputs */
+    .input-wrap { position: relative; }
+    .input-wrap input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 44px 12px 14px; font-family: var(--mono); font-size: 13px; color: var(--text); outline: none; transition: border-color 0.15s; letter-spacing: 0.02em; }
+    .input-wrap input::placeholder { color: var(--muted); }
+    .input-wrap input:focus { border-color: var(--border-hi); }
+    .input-wrap input.filled { border-color: var(--accent); }
+    .eye-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--muted); transition: color 0.15s; padding: 4px; }
+    .eye-btn:hover { color: var(--text); }
+    .input-hint { margin-top: 8px; font-size: 12px; color: var(--muted); }
+    .input-hint a { color: var(--accent); text-decoration: none; }
+    .input-hint a:hover { text-decoration: underline; }
+
+    /* Simple text input (prénom) */
+    .text-input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-family: var(--sans); font-size: 14px; color: var(--text); outline: none; transition: border-color 0.15s; }
+    .text-input::placeholder { color: var(--muted); }
+    .text-input:focus { border-color: var(--border-hi); }
+    .text-input.filled { border-color: var(--accent); }
+
+    /* Member chips */
+    .member-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .chip { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-family: var(--mono); border: 1px solid var(--border); color: var(--muted); cursor: pointer; transition: all 0.15s; }
+    .chip:hover { border-color: var(--accent); color: var(--accent); }
+    .chip.selected { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+    /* Drop zone */
+    .drop-zone { border: 1.5px dashed var(--border); border-radius: 10px; padding: 40px 24px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; position: relative; }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: var(--accent-dim); }
+    .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .drop-icon { width: 40px; height: 40px; margin: 0 auto 12px; color: var(--muted); transition: color 0.2s, transform 0.2s; }
+    .drop-zone:hover .drop-icon, .drop-zone.drag-over .drop-icon { color: var(--accent); transform: translateY(-3px); }
+    .drop-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+    .drop-sub { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+    .file-pill { display: none; align-items: center; gap: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-top: 12px; }
+    .file-pill.show { display: flex; }
+    .file-icon { color: var(--accent); flex-shrink: 0; }
+    .file-name { flex: 1; font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-remove { background: none; border: none; cursor: pointer; color: var(--muted); padding: 2px; border-radius: 4px; transition: color 0.15s; }
+    .file-remove:hover { color: var(--err); }
+
+    /* Options row */
+    .options-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+    .toggle-wrap { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+    .toggle { width: 36px; height: 20px; background: var(--border-hi); border-radius: 10px; position: relative; transition: background 0.2s; cursor: pointer; }
+    .toggle::after { content:''; position: absolute; width: 14px; height: 14px; border-radius: 50%; background: var(--text); top: 3px; left: 3px; transition: transform 0.2s; }
+    .toggle.on { background: var(--accent); }
+    .toggle.on::after { transform: translateX(16px); }
+    .toggle-label { font-size: 13px; color: var(--muted); }
+
+    /* Buttons */
+    .btn-submit { background: var(--text); color: var(--bg); border: none; border-radius: 8px; padding: 11px 24px; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s, transform 0.1s; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+    .btn-submit:hover { opacity: 0.88; }
+    .btn-submit:active { transform: scale(0.98); }
+    .btn-submit:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-submit .spinner { display: none; width: 14px; height: 14px; border: 2px solid transparent; border-top-color: var(--bg); border-radius: 50%; animation: spin 0.6s linear infinite; }
+    .btn-submit.loading .spinner { display: block; }
+    .btn-submit.loading .btn-text { display: none; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+
+    .btn-stop { background: transparent; color: var(--err); border: 1px solid var(--err); border-radius: 8px; padding: 10px 20px; font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; visibility: hidden; opacity: 0; display: flex; align-items: center; gap: 7px; transition: background 0.15s, opacity 0.2s; pointer-events: none; }
+    .btn-stop:hover { background: var(--err-dim); }
+    .btn-stop.show { visibility: visible; opacity: 1; pointer-events: auto; }
+    .btn-stop.stopping { opacity: 0.5; cursor: not-allowed; }
+
+    /* Schema details */
+    details { margin-top: 16px; }
+    summary { cursor: pointer; font-size: 12px; color: var(--muted); user-select: none; list-style: none; display: flex; align-items: center; gap: 6px; }
+    summary::-webkit-details-marker { display: none; }
+    summary::before { content:'▶'; font-size: 9px; transition: transform 0.15s; }
+    details[open] summary::before { transform: rotate(90deg); }
+    .schema-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+    .schema-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 11px; font-family: var(--mono); }
+    .schema-col { color: var(--text); }
+    .schema-type { color: var(--muted); font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--surface); }
+    .schema-type.title{color:var(--accent)} .schema-type.select{color:var(--warn)} .schema-type.email{color:#7eb8f7} .schema-type.date{color:#c97bff}
+
+    /* Progress */
+    #progressPanel { display: none; margin-top: 16px; }
+    #progressPanel.show { display: block; }
+    .progress-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 20px; }
+    .progress-bar { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width 0.3s ease; box-shadow: 0 0 8px var(--accent); }
+    .progress-stats { display: flex; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; }
+    .stat { display: flex; flex-direction: column; gap: 2px; }
+    .stat-val { font-family: var(--mono); font-size: 22px; font-weight: 500; line-height: 1; }
+    .stat-val.green{color:var(--accent)} .stat-val.red{color:var(--err)} .stat-val.warn{color:var(--warn)}
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-family: var(--mono); }
+
+    /* Log */
+    .log-wrap { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; max-height: 280px; overflow-y: auto; font-family: var(--mono); font-size: 12px; padding: 0; }
+    .log-wrap::-webkit-scrollbar { width: 4px; }
+    .log-wrap::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
+    .log-row { display: flex; align-items: baseline; gap: 10px; padding: 7px 14px; border-bottom: 1px solid var(--border); animation: fadeIn 0.2s ease both; }
+    .log-row:last-child { border-bottom: none; }
+    @keyframes fadeIn { from{opacity:0;transform:translateX(-4px)} to{opacity:1;transform:translateX(0)} }
+    .log-row.ok   .log-icon{color:var(--accent)}
+    .log-row.err  .log-icon{color:var(--err)}
+    .log-row.skip .log-icon{color:var(--warn)}
+    .log-row.info .log-icon{color:var(--muted)}
+    .log-idx { color: var(--muted); min-width: 28px; text-align: right; }
+    .log-name { flex: 1; color: var(--text); }
+    .log-detail { color: var(--muted); font-size: 11px; }
+    .log-err { color: var(--err); font-size: 11px; }
+
+    /* Columns hint */
+    .cols-hint { display: none; margin-top: 12px; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .cols-hint.show { display: block; }
+    .cols-matched { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .col-tag { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 1px 8px; font-size: 11px; }
+    .col-tag.ignored { background: transparent; color: var(--muted); border-color: var(--border); }
+
+    /* Done banner */
+    .done-banner { display: none; margin-top: 16px; padding: 16px 20px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent-dim); align-items: center; justify-content: space-between; gap: 12px; }
+    .done-banner.show { display: flex; }
+    .done-banner.error-banner { border-color: var(--err); background: var(--err-dim); }
+    .done-banner.warn-banner { border-color: var(--warn); background: var(--warn-dim); }
+    .done-msg { font-size: 14px; font-weight: 500; }
+    .done-link { font-family: var(--mono); font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
+    .done-link:hover { text-decoration: underline; }
+
+    /* Clear modal */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 100; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; max-width: 420px; width: 90%; }
+    .modal h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+    .modal p { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .btn-cancel-modal { background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 9px 18px; font-family: var(--sans); font-size: 13px; cursor: pointer; transition: border-color 0.15s; }
+    .btn-cancel-modal:hover { border-color: var(--border-hi); color: var(--text); }
+    .btn-confirm-clear { background: var(--err); color: white; border: none; border-radius: 8px; padding: 9px 18px; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+    .btn-confirm-clear:hover { opacity: 0.85; }
+
+    /* Clear progress */
+    #clearProgress { display: none; margin-top: 16px; }
+    #clearProgress.show { display: block; }
+
+    @media(max-width:560px) {
+      main { padding: 40px 16px 60px; }
+      .hero h1 { font-size: 24px; }
+      .schema-grid { grid-template-columns: 1fr; }
+      .options-row { flex-direction: column; align-items: stretch; }
+      .btn-submit { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <div class="logo">
+      <div class="logo-dot"></div>
+      notion importer
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn-danger-sm" onclick="openClearModal()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+        Vider la base
+      </button>
+      <span class="badge">HEC IA Intelligence</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero">
+      <h1>Importez vos prospects<br>vers Notion</h1>
+      <p>Glissez un fichier CSV ou XLSX — les doublons par email sont détectés et ignorés automatiquement.</p>
+    </div>
+
+    <!-- Token -->
+    <div class="card">
+      <div class="card-label">01 · Token Notion</div>
+      <div class="input-wrap">
+        <input type="password" id="tokenInput" placeholder="secret_xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false" />
+        <button class="eye-btn" onclick="toggleToken()" title="Afficher/masquer">
+          <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <p class="input-hint">
+        Créez une intégration sur <a href="https://www.notion.so/my-integrations" target="_blank">notion.so/my-integrations</a> et autorisez-la sur les bases Prospection et Membres.
+      </p>
+    </div>
+
+    <!-- Prénom -->
+    <div class="card">
+      <div class="card-label">02 · Qui démarche ?</div>
+      <input type="text" class="text-input" id="prenomInput" placeholder="Ton prénom (ex: Octave)" autocomplete="off" />
+      <p class="input-hint" style="margin-top:8px">Sera automatiquement renseigné dans "Qui a démarché" sur chaque entrée importée.</p>
+    </div>
+
+    <!-- File -->
+    <div class="card">
+      <div class="card-label">03 · Fichier</div>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" />
+        <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div class="drop-title">Glissez votre fichier ici</div>
+        <div class="drop-sub">CSV · XLSX · XLS</div>
+      </div>
+      <div class="file-pill" id="filePill">
+        <svg class="file-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span class="file-name" id="fileName">—</span>
+        <button class="file-remove" onclick="clearFile()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <details>
+        <summary>Colonnes reconnues automatiquement</summary>
+        <div class="schema-grid">
+          <div class="schema-row"><span class="schema-col">Nom de l'entreprise</span><span class="schema-type title">title</span></div>
+          <div class="schema-row"><span class="schema-col">Statut du Partenariat</span><span class="schema-type select">select</span></div>
+          <div class="schema-row"><span class="schema-col">Type d'entreprise</span><span class="schema-type select">select</span></div>
+          <div class="schema-row"><span class="schema-col">Prénom-Nom contact</span><span class="schema-type">text</span></div>
+          <div class="schema-row"><span class="schema-col">Poste contact</span><span class="schema-type">text</span></div>
+          <div class="schema-row"><span class="schema-col">Mail contact</span><span class="schema-type email">email</span></div>
+          <div class="schema-row"><span class="schema-col">Numéro contact</span><span class="schema-type">phone</span></div>
+          <div class="schema-row"><span class="schema-col">Objet de la demande</span><span class="schema-type">text</span></div>
+          <div class="schema-row"><span class="schema-col">Date d'envoi</span><span class="schema-type date">date</span></div>
+          <div class="schema-row"><span class="schema-col">Notes</span><span class="schema-type">text</span></div>
+        </div>
+      </details>
+
+      <div class="options-row">
+        <label style="cursor:pointer;display:flex;align-items:center;gap:8px" onclick="toggleDryRun()">
+          <div class="toggle" id="dryToggle"></div>
+          <span class="toggle-label">Dry run (test sans écrire)</span>
+        </label>
+        <div style="display:flex;gap:8px">
+          <button class="btn-stop" id="stopBtn" onclick="stopImport()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+            Arrêter
+          </button>
+          <button class="btn-submit" id="submitBtn" onclick="startImport()" disabled>
+            <div class="spinner"></div>
+            <span class="btn-text">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="display:inline;vertical-align:-2px;margin-right:4px"><polyline points="5 12 12 5 19 12"/><polyline points="5 19 12 12 19 19"/></svg>
+              Importer
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div id="progressPanel">
+      <div class="card">
+        <div class="card-label">Progression</div>
+        <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+        <div class="progress-stats">
+          <div class="stat"><div class="stat-val" id="statTotal">0</div><div class="stat-label">Total</div></div>
+          <div class="stat"><div class="stat-val green" id="statOk">0</div><div class="stat-label">Importés</div></div>
+          <div class="stat"><div class="stat-val warn" id="statSkip">0</div><div class="stat-label">Ignorés</div></div>
+          <div class="stat"><div class="stat-val red" id="statErr">0</div><div class="stat-label">Erreurs</div></div>
+        </div>
+        <div class="cols-hint" id="colsHint">
+          <div style="color:var(--text);margin-bottom:6px">Colonnes importées</div>
+          <div class="cols-matched" id="matchedCols"></div>
+          <div id="unmatchedWrap" style="display:none;margin-top:10px">
+            <div style="margin-bottom:6px">Colonnes ignorées</div>
+            <div class="cols-matched" id="unmatchedCols"></div>
+          </div>
+        </div>
+        <div class="log-wrap" id="logWrap"></div>
+      </div>
+      <div class="done-banner" id="doneBanner">
+        <span class="done-msg" id="doneMsg"></span>
+        <a class="done-link" id="doneLink" href="#" target="_blank" style="display:none">
+          Ouvrir Notion
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+      </div>
+    </div>
+
+    <!-- Clear progress -->
+    <div id="clearProgress">
+      <div class="card">
+        <div class="card-label">Suppression en cours</div>
+        <div class="progress-bar-wrap"><div class="progress-bar" id="clearBar" style="background:var(--err);box-shadow:0 0 8px var(--err)"></div></div>
+        <div style="font-family:var(--mono);font-size:13px;color:var(--muted)" id="clearStatus">Chargement…</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Clear Modal -->
+<div class="modal-overlay" id="clearModal">
+  <div class="modal">
+    <h2>⚠️ Vider la base ?</h2>
+    <p>Cette action va archiver <strong>toutes les entrées</strong> de la base Prospection. Elle est irréversible (sauf restauration manuelle dans Notion).</p>
+    <p style="margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--muted)">Token requis pour authentifier l'opération.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel-modal" onclick="closeClearModal()">Annuler</button>
+      <button class="btn-confirm-clear" onclick="confirmClear()">Vider la base</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let selectedFile    = null;
+  let dryRun          = false;
+  let currentJobId    = null;
+  let currentEvtSrc   = null;
+  let clearJobId      = null;
+  let clearEvtSrc     = null;
+  let totalRows       = 0;
+  let okCount = 0, skipCount = 0, errCount = 0;
+  let selectedMember  = '';
+
+  // ── Token ──
+  const tokenInput = document.getElementById('tokenInput');
+  tokenInput.addEventListener('input', () => {
+    tokenInput.classList.toggle('filled', tokenInput.value.trim().length > 10);
+    updateSubmit();
+  });
+  function toggleToken() {
+    tokenInput.type = tokenInput.type === 'password' ? 'text' : 'password';
+  }
+
+  // ── Prénom input ──
+  document.getElementById('prenomInput').addEventListener('input', e => {
+    selectedMember = e.target.value.trim();
+    e.target.classList.toggle('filled', selectedMember.length > 0);
+  });
+
+  // ── Dry run toggle ──
+  function toggleDryRun() {
+    dryRun = !dryRun;
+    document.getElementById('dryToggle').classList.toggle('on', dryRun);
+    updateSubmit();
+  }
+
+  // ── File ──
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) setFile(e.target.files[0]); });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); });
+
+  function setFile(f) {
+    selectedFile = f;
+    document.getElementById('fileName').textContent = f.name;
+    document.getElementById('filePill').classList.add('show');
+    updateSubmit();
+  }
+  function clearFile() {
+    selectedFile = null;
+    fileInput.value = '';
+    document.getElementById('filePill').classList.remove('show');
+    updateSubmit();
+  }
+  function updateSubmit() {
+    const hasToken = tokenInput.value.trim().length > 10 || dryRun;
+    document.getElementById('submitBtn').disabled = !(selectedFile && hasToken);
+  }
+
+  // ── Import ──
+  async function startImport() {
+    const token = tokenInput.value.trim();
+    if (!selectedFile) return;
+    if (!token && !dryRun) { alert('Token Notion requis.'); return; }
+
+    resetProgress();
+    const btn = document.getElementById('submitBtn');
+    btn.classList.add('loading'); btn.disabled = true;
+    document.getElementById('progressPanel').classList.add('show');
+    document.getElementById('stopBtn').classList.add('show');
+    document.getElementById('stopBtn').innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg> Arrêter';
+    document.getElementById('stopBtn').classList.remove('stopping');
+
+    const fd = new FormData();
+    fd.append('file', selectedFile);
+    fd.append('token', token);
+    fd.append('dry_run', dryRun ? 'true' : 'false');
+    fd.append('prenom', selectedMember);
+
+    let jobId;
+    try {
+      const res  = await fetch('/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      jobId = data.job_id;
+      currentJobId = jobId;
+    } catch(e) {
+      showError(e.message);
+      btn.classList.remove('loading'); btn.disabled = false;
+      document.getElementById('stopBtn').classList.remove('show');
+      return;
+    }
+
+    currentEvtSrc = new EventSource('/stream/' + jobId);
+    currentEvtSrc.onmessage = e => {
+      const ev = JSON.parse(e.data);
+      handleImportEvent(ev);
+      if (['done','error','cancelled'].includes(ev.type)) {
+        currentEvtSrc.close();
+        btn.classList.remove('loading'); btn.disabled = false;
+        document.getElementById('stopBtn').classList.remove('show');
+      }
+    };
+    currentEvtSrc.onerror = () => {
+      currentEvtSrc.close();
+      btn.classList.remove('loading'); btn.disabled = false;
+      document.getElementById('stopBtn').classList.remove('show');
+    };
+  }
+
+  async function stopImport() {
+    if (!currentJobId) return;
+    const btn = document.getElementById('stopBtn');
+    btn.classList.add('stopping');
+    btn.textContent = 'Arrêt en cours…';
+    try { await fetch('/cancel/' + currentJobId, { method: 'POST' }); } catch(e) {}
+  }
+
+  function resetProgress() {
+    totalRows = okCount = skipCount = errCount = 0;
+    ['statTotal','statOk','statSkip','statErr'].forEach(id => document.getElementById(id).textContent = '0');
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('logWrap').innerHTML = '';
+    document.getElementById('doneBanner').className = 'done-banner';
+    document.getElementById('doneBanner').style.display = 'none';
+    document.getElementById('colsHint').classList.remove('show');
+    document.getElementById('doneLink').style.display = 'none';
+  }
+
+  function handleImportEvent(ev) {
+    if (ev.type === 'dedup_start') {
+      addLog('info', '…', ev.data.message, null);
+    }
+    if (ev.type === 'dedup_ready') {
+      addLog('info', '…', ev.data.count + ' emails existants chargés', null);
+    }
+    if (ev.type === 'member_found') {
+      addLog('info', '…', 'Membre trouvé : ' + ev.data.name, null);
+    }
+    if (ev.type === 'member_not_found') {
+      addLog('skip', '…', 'Membre introuvable : ' + ev.data.name + ' (relation non renseignée)', null);
+    }
+    if (ev.type === 'columns') {
+      totalRows = ev.data.total_rows;
+      document.getElementById('statTotal').textContent = totalRows;
+      const hint = document.getElementById('colsHint');
+      hint.classList.add('show');
+      document.getElementById('matchedCols').innerHTML = ev.data.matched.map(c => `<span class="col-tag">${c}</span>`).join('');
+      if ((ev.data.unmatched || []).length) {
+        document.getElementById('unmatchedWrap').style.display = 'block';
+        document.getElementById('unmatchedCols').innerHTML = ev.data.unmatched.map(c => `<span class="col-tag ignored">${c}</span>`).join('');
+      }
+    }
+    if (ev.type === 'row_ok') {
+      okCount++;
+      document.getElementById('statOk').textContent = okCount;
+      updateBar();
+      addLog('ok', ev.data.index, ev.data.name, null, dryRun);
+    }
+    if (ev.type === 'row_skip') {
+      skipCount++;
+      document.getElementById('statSkip').textContent = skipCount;
+      updateBar();
+      addLog('skip', ev.data.index, ev.data.name, ev.data.reason);
+    }
+    if (ev.type === 'row_err') {
+      errCount++;
+      document.getElementById('statErr').textContent = errCount;
+      updateBar();
+      addLog('err', ev.data.index, ev.data.name, ev.data.error);
+    }
+    if (ev.type === 'cancelled') {
+      document.getElementById('progressBar').style.width = '100%';
+      showBanner('warn', `Import arrêté — ${ev.data.success} importés, ${ev.data.skipped} ignorés.`, null);
+    }
+    if (ev.type === 'done') {
+      document.getElementById('progressBar').style.width = '100%';
+      const label = dryRun ? 'Dry run' : 'Import';
+      showBanner('ok',
+        `${label} terminé — ${ev.data.success} importés, ${ev.data.skipped} ignorés, ${ev.data.errors} erreurs.`,
+        dryRun ? null : ev.data.notion_url
+      );
+    }
+    if (ev.type === 'error') { showError(ev.data.message); }
+  }
+
+  function updateBar() {
+    if (!totalRows) return;
+    document.getElementById('progressBar').style.width = Math.round(((okCount+skipCount+errCount)/totalRows)*100) + '%';
+  }
+
+  function addLog(status, idx, name, detail, isDry) {
+    const wrap = document.getElementById('logWrap');
+    const row  = document.createElement('div');
+    row.className = 'log-row ' + status;
+    const icons = {
+      ok:   '<svg class="log-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>',
+      err:  '<svg class="log-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+      skip: '<svg class="log-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+      info: '<svg class="log-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+    };
+    const prefix = isDry ? '~ ' : '';
+    row.innerHTML = `${icons[status]||icons.info}<span class="log-idx">${idx}</span><span class="log-name">${prefix}${escHtml(String(name))}</span>${detail ? `<span class="${status==='err'?'log-err':'log-detail'}">${escHtml(detail)}</span>` : ''}`;
+    wrap.appendChild(row);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  function showBanner(type, msg, url) {
+    const banner  = document.getElementById('doneBanner');
+    const doneMsg = document.getElementById('doneMsg');
+    const doneLink = document.getElementById('doneLink');
+    const cls = {ok:'', err:'error-banner', warn:'warn-banner'};
+    banner.className = 'done-banner show ' + (cls[type]||'');
+    banner.style.display = '';
+    doneMsg.textContent = msg;
+    if (url) { doneLink.href = url; doneLink.style.display = 'flex'; }
+  }
+
+  function showError(msg) { showBanner('err', '⚠ ' + msg, null); }
+
+  // ── Clear modal ──
+  function openClearModal() {
+    document.getElementById('clearModal').classList.add('show');
+  }
+  function closeClearModal() {
+    document.getElementById('clearModal').classList.remove('show');
+  }
+  document.getElementById('clearModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('clearModal')) closeClearModal();
+  });
+
+  async function confirmClear() {
+    const token = tokenInput.value.trim();
+    if (!token) { alert('Remplis le token Notion en haut de page d\'abord.'); return; }
+    closeClearModal();
+
+    document.getElementById('clearProgress').classList.add('show');
+    document.getElementById('clearStatus').textContent = 'Chargement des entrées…';
+    document.getElementById('clearBar').style.width = '0%';
+
+    let jobId;
+    try {
+      const res  = await fetch('/clear', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({token}) });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      jobId = data.job_id;
+      clearJobId = jobId;
+    } catch(e) {
+      document.getElementById('clearStatus').textContent = '⚠ ' + e.message;
+      return;
+    }
+
+    let clearTotal = 0;
+    clearEvtSrc = new EventSource('/stream/' + jobId);
+    clearEvtSrc.onmessage = e => {
+      const ev = JSON.parse(e.data);
+      if (ev.type === 'clear_total') {
+        clearTotal = ev.data.total;
+        document.getElementById('clearStatus').textContent = `0 / ${clearTotal} supprimés…`;
+      }
+      if (ev.type === 'clear_row') {
+        const pct = Math.round((ev.data.deleted / (ev.data.total||1)) * 100);
+        document.getElementById('clearBar').style.width = pct + '%';
+        document.getElementById('clearStatus').textContent = `${ev.data.deleted} / ${ev.data.total} supprimés…`;
+      }
+      if (ev.type === 'clear_done') {
+        document.getElementById('clearBar').style.width = '100%';
+        document.getElementById('clearStatus').textContent = `✔ ${ev.data.deleted} entrées supprimées.`;
+        clearEvtSrc.close();
+      }
+      if (ev.type === 'error') {
+        document.getElementById('clearStatus').textContent = '⚠ ' + ev.data.message;
+        clearEvtSrc.close();
+      }
+    };
+  }
+
+  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>

@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Notion Importer — HEC IA Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0a;
+      --surface:   #111111;
+      --border:    #222222;
+      --border-hi: #333333;
+      --text:      #f5f5f5;
+      --muted:     #666666;
+      --accent:    #00c896;
+      --accent-dim:#00c89620;
+      --err:       #ff4d4d;
+      --err-dim:   #ff4d4d18;
+      --warn:      #f5a623;
+      --radius:    12px;
+      --mono:      'Geist Mono', monospace;
+      --sans:      'Geist', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ── */
+    .shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text);
+      letter-spacing: 0.02em;
+    }
+
+    .logo-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+
+    main {
+      flex: 1;
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 64px 24px 80px;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      margin-bottom: 56px;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .hero h1 {
+      font-size: 32px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #ffffff 0%, #888888 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero p {
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 440px;
+      margin: 0 auto;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      animation: fadeUp 0.5s ease both;
+    }
+    .card + .card { margin-top: 16px; }
+    .card:nth-child(2) { animation-delay: 0.05s; }
+    .card:nth-child(3) { animation-delay: 0.1s; }
+
+    .card-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Token input ── */
+    .input-wrap {
+      position: relative;
+    }
+
+    .input-wrap input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 44px 12px 14px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+      letter-spacing: 0.02em;
+    }
+
+    .input-wrap input::placeholder { color: var(--muted); }
+    .input-wrap input:focus { border-color: var(--border-hi); }
+
+    .input-wrap input.filled { border-color: var(--accent); }
+
+    .eye-btn {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      transition: color 0.15s;
+      padding: 4px;
+    }
+    .eye-btn:hover { color: var(--text); }
+
+    .input-hint {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .input-hint a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .input-hint a:hover { text-decoration: underline; }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 1.5px dashed var(--border);
+      border-radius: 10px;
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .drop-icon {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 12px;
+      color: var(--muted);
+      transition: color 0.2s, transform 0.2s;
+    }
+
+    .drop-zone:hover .drop-icon,
+    .drop-zone.drag-over .drop-icon {
+      color: var(--accent);
+      transform: translateY(-3px);
+    }
+
+    .drop-title {
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .drop-sub {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    /* ── File pill ── */
+    .file-pill {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-top: 12px;
+    }
+
+    .file-pill.show { display: flex; }
+
+    .file-icon { color: var(--accent); flex-shrink: 0; }
+    .file-name {
+      flex: 1;
+      font-family: var(--mono);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-remove {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      padding: 2px;
+      border-radius: 4px;
+      transition: color 0.15s;
+    }
+    .file-remove:hover { color: var(--err); }
+
+    /* ── Options row ── */
+    .options-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .toggle-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .toggle {
+      width: 36px; height: 20px;
+      background: var(--border-hi);
+      border-radius: 10px;
+      position: relative;
+      transition: background 0.2s;
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--text);
+      top: 3px; left: 3px;
+      transition: transform 0.2s;
+    }
+
+    #dryRun:checked ~ .toggle-wrap .toggle { background: var(--accent); }
+    #dryRun:checked ~ .toggle-wrap .toggle::after { transform: translateX(16px); }
+
+    #dryRun { display: none; }
+
+    .toggle-label { font-size: 13px; color: var(--muted); }
+
+    /* ── Submit button ── */
+    .btn-submit {
+      background: var(--text);
+      color: var(--bg);
+      border: none;
+      border-radius: 8px;
+      padding: 11px 24px;
+      font-family: var(--sans);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .btn-submit:hover { opacity: 0.88; }
+    .btn-submit:active { transform: scale(0.98); }
+    .btn-submit:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .btn-submit .spinner {
+      display: none;
+      width: 14px; height: 14px;
+      border: 2px solid transparent;
+      border-top-color: var(--bg);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    .btn-submit.loading .spinner { display: block; }
+    .btn-submit.loading .btn-text { display: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Progress panel ── */
+    #progressPanel {
+      display: none;
+      margin-top: 16px;
+    }
+
+    #progressPanel.show { display: block; }
+
+    .progress-bar-wrap {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.3s ease;
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    .progress-stats {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 20px;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stat-val {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 500;
+      line-height: 1;
+    }
+
+    .stat-val.green { color: var(--accent); }
+    .stat-val.red   { color: var(--err); }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-family: var(--mono);
+    }
+
+    /* ── Log ── */
+    .log-wrap {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      max-height: 280px;
+      overflow-y: auto;
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 0;
+    }
+
+    .log-wrap::-webkit-scrollbar { width: 4px; }
+    .log-wrap::-webkit-scrollbar-track { background: transparent; }
+    .log-wrap::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
+
+    .log-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      padding: 7px 14px;
+      border-bottom: 1px solid var(--border);
+      animation: fadeIn 0.2s ease both;
+    }
+
+    .log-row:last-child { border-bottom: none; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateX(-4px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .log-row.ok   .log-icon { color: var(--accent); }
+    .log-row.err  .log-icon { color: var(--err); }
+    .log-row.info .log-icon { color: var(--warn); }
+
+    .log-idx  { color: var(--muted); min-width: 28px; text-align: right; }
+    .log-name { flex: 1; color: var(--text); }
+    .log-err  { color: var(--err); font-size: 11px; }
+
+    /* ── Done banner ── */
+    .done-banner {
+      display: none;
+      margin-top: 16px;
+      padding: 16px 20px;
+      border-radius: 10px;
+      border: 1px solid var(--accent);
+      background: var(--accent-dim);
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .done-banner.show { display: flex; }
+    .done-banner.error-banner {
+      border-color: var(--err);
+      background: var(--err-dim);
+    }
+
+    .done-msg { font-size: 14px; font-weight: 500; }
+
+    .done-link {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      text-decoration: none;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .done-link:hover { text-decoration: underline; }
+
+    /* ── Columns hint ── */
+    .cols-hint {
+      display: none;
+      margin-top: 12px;
+      padding: 12px 16px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .cols-hint.show { display: block; }
+
+    .cols-matched {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .col-tag {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      padding: 1px 8px;
+      font-size: 11px;
+    }
+
+    .col-tag.ignored {
+      background: transparent;
+      color: var(--muted);
+      border-color: var(--border);
+    }
+
+    /* ── Schema reference ── */
+    details {
+      margin-top: 8px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--muted);
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    summary::-webkit-details-marker { display: none; }
+
+    summary::before {
+      content: '▶';
+      font-size: 9px;
+      transition: transform 0.15s;
+    }
+
+    details[open] summary::before { transform: rotate(90deg); }
+
+    .schema-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    .schema-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 11px;
+      font-family: var(--mono);
+    }
+
+    .schema-col { color: var(--text); }
+    .schema-type {
+      color: var(--muted);
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: var(--surface);
+    }
+
+    .schema-type.title   { color: var(--accent); }
+    .schema-type.select  { color: var(--warn); }
+    .schema-type.email   { color: #7eb8f7; }
+    .schema-type.date    { color: #c97bff; }
+
+    /* ── Responsive ── */
+    @media (max-width: 560px) {
+      main { padding: 40px 16px 60px; }
+      .hero h1 { font-size: 24px; }
+      .schema-grid { grid-template-columns: 1fr; }
+      .options-row { flex-direction: column; align-items: stretch; }
+      .btn-submit { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <div class="logo">
+      <div class="logo-dot"></div>
+      notion importer
+    </div>
+    <span class="badge">HEC IA Intelligence</span>
+  </header>
+
+  <main>
+
+    <div class="hero">
+      <h1>Importez vos prospects<br>vers Notion</h1>
+      <p>Glissez un fichier CSV ou XLSX, mappez vos colonnes automatiquement et synchronisez en un clic.</p>
+    </div>
+
+    <!-- Token -->
+    <div class="card">
+      <div class="card-label">01 · Token Notion</div>
+      <div class="input-wrap">
+        <input type="password" id="tokenInput" placeholder="secret_xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false" />
+        <button class="eye-btn" onclick="toggleToken()" title="Afficher/masquer">
+          <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+      <p class="input-hint">
+        Créez une intégration sur
+        <a href="https://www.notion.so/my-integrations" target="_blank">notion.so/my-integrations</a>
+        et autorisez-la sur la base Prospection.
+      </p>
+    </div>
+
+    <!-- File -->
+    <div class="card">
+      <div class="card-label">02 · Fichier</div>
+
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" />
+        <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <div class="drop-title">Glissez votre fichier ici</div>
+        <div class="drop-sub">CSV · XLSX · XLS</div>
+      </div>
+
+      <div class="file-pill" id="filePill">
+        <svg class="file-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span class="file-name" id="fileName">—</span>
+        <button class="file-remove" onclick="clearFile()" title="Supprimer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Schema reference -->
+      <details style="margin-top:16px">
+        <summary>Colonnes reconnues automatiquement</summary>
+        <div class="schema-grid">
+          <div class="schema-row"><span class="schema-col">Nom de l'entreprise</span><span class="schema-type title">title</span></div>
+          <div class="schema-row"><span class="schema-col">Statut du Partenariat</span><span class="schema-type select">select</span></div>
+          <div class="schema-row"><span class="schema-col">Type d'entreprise</span><span class="schema-type select">select</span></div>
+          <div class="schema-row"><span class="schema-col">Prénom-Nom contact</span><span class="schema-type">text</span></div>
+          <div class="schema-row"><span class="schema-col">Poste contact</span><span class="schema-type">text</span></div>
+          <div class="schema-row"><span class="schema-col">Mail contact</span><span class="schema-type email">email</span></div>
+          <div class="schema-row"><span class="schema-col">Numéro contact</span><span class="schema-type">phone</span></div>
+          <div class="schema-row"><span class="schema-col">Objet de la demande</span><span class="schema-type">text</span></div>
+          <div class="schema-row"><span class="schema-col">Date d'envoi</span><span class="schema-type date">date</span></div>
+          <div class="schema-row"><span class="schema-col">Notes</span><span class="schema-type">text</span></div>
+        </div>
+      </details>
+
+      <div class="options-row">
+        <label style="cursor:pointer;display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="dryRun" style="display:none" />
+          <div class="toggle" id="toggleEl"></div>
+          <span class="toggle-label">Dry run (test sans écrire)</span>
+        </label>
+        <button class="btn-submit" id="submitBtn" onclick="startImport()" disabled>
+          <div class="spinner"></div>
+          <span class="btn-text">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="display:inline;vertical-align:-2px;margin-right:4px"><polyline points="5 12 12 5 19 12"/><polyline points="5 19 12 12 19 19"/></svg>
+            Importer
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div id="progressPanel">
+      <div class="card">
+        <div class="card-label">Progression</div>
+
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <div class="progress-stats">
+          <div class="stat">
+            <div class="stat-val" id="statTotal">0</div>
+            <div class="stat-label">Total</div>
+          </div>
+          <div class="stat">
+            <div class="stat-val green" id="statOk">0</div>
+            <div class="stat-label">Succès</div>
+          </div>
+          <div class="stat">
+            <div class="stat-val red" id="statErr">0</div>
+            <div class="stat-label">Erreurs</div>
+          </div>
+        </div>
+
+        <div class="cols-hint" id="colsHint">
+          <div style="color:var(--text);margin-bottom:6px;">Colonnes importées</div>
+          <div class="cols-matched" id="matchedCols"></div>
+          <div id="unmatchedWrap" style="margin-top:10px;display:none">
+            <div style="color:var(--muted);margin-bottom:6px;">Colonnes ignorées</div>
+            <div class="cols-matched" id="unmatchedCols"></div>
+          </div>
+        </div>
+
+        <div class="log-wrap" id="logWrap"></div>
+      </div>
+
+      <div class="done-banner" id="doneBanner">
+        <span class="done-msg" id="doneMsg"></span>
+        <a class="done-link" id="doneLink" href="#" target="_blank" style="display:none">
+          Ouvrir Notion
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  let selectedFile = null;
+  let totalRows    = 0;
+  let okCount      = 0;
+  let errCount     = 0;
+
+  // ── Token input feedback ──
+  const tokenInput = document.getElementById('tokenInput');
+  tokenInput.addEventListener('input', () => {
+    tokenInput.classList.toggle('filled', tokenInput.value.trim().length > 10);
+    updateSubmitState();
+  });
+
+  function toggleToken() {
+    const t = tokenInput.type === 'password' ? 'text' : 'password';
+    tokenInput.type = t;
+  }
+
+  // ── Toggle ──
+  const dryRunCb = document.getElementById('dryRun');
+  const toggleEl = document.getElementById('toggleEl');
+  toggleEl.addEventListener('click', () => {
+    dryRunCb.checked = !dryRunCb.checked;
+    toggleEl.style.background = dryRunCb.checked ? 'var(--accent)' : '';
+    toggleEl.querySelector ? null : null;
+    // manual toggle style
+    const knob = toggleEl;
+    if (dryRunCb.checked) {
+      knob.style.background = 'var(--accent)';
+      knob.style.setProperty('--tw', 'translateX(16px)');
+    } else {
+      knob.style.background = '';
+    }
+    updateSubmitState();
+  });
+  // CSS handles the ::after via checkbox, but we duplicate via JS for the label click
+  document.querySelector('.toggle-label').addEventListener('click', () => toggleEl.click());
+
+  // ── File input ──
+  const dropZone  = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const filePill  = document.getElementById('filePill');
+  const fileNameEl = document.getElementById('fileName');
+
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) setFile(e.target.files[0]);
+  });
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+  });
+
+  function setFile(f) {
+    selectedFile = f;
+    fileNameEl.textContent = f.name;
+    filePill.classList.add('show');
+    updateSubmitState();
+  }
+
+  function clearFile() {
+    selectedFile = null;
+    fileInput.value = '';
+    filePill.classList.remove('show');
+    updateSubmitState();
+  }
+
+  function updateSubmitState() {
+    const btn = document.getElementById('submitBtn');
+    const hasFile  = !!selectedFile;
+    const hasToken = tokenInput.value.trim().length > 10 || dryRunCb.checked;
+    btn.disabled = !(hasFile && hasToken);
+  }
+
+  // ── Import ──
+  async function startImport() {
+    const token   = tokenInput.value.trim();
+    const dryRun  = dryRunCb.checked;
+    const btn     = document.getElementById('submitBtn');
+
+    if (!selectedFile) return;
+    if (!token && !dryRun) { alert('Token Notion requis.'); return; }
+
+    // Reset UI
+    resetProgress();
+    btn.classList.add('loading');
+    btn.disabled = true;
+    document.getElementById('progressPanel').classList.add('show');
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('token', token);
+    formData.append('dry_run', dryRun ? 'true' : 'false');
+
+    let jobId;
+    try {
+      const res  = await fetch('/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      jobId = data.job_id;
+    } catch (e) {
+      showError(e.message);
+      btn.classList.remove('loading');
+      btn.disabled = false;
+      return;
+    }
+
+    // Stream events
+    const evtSource = new EventSource(`/stream/${jobId}`);
+    evtSource.onmessage = e => {
+      const ev = JSON.parse(e.data);
+      handleEvent(ev, dryRun);
+      if (ev.type === 'done' || ev.type === 'error') {
+        evtSource.close();
+        btn.classList.remove('loading');
+        btn.disabled = false;
+      }
+    };
+    evtSource.onerror = () => {
+      evtSource.close();
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    };
+  }
+
+  function resetProgress() {
+    totalRows = okCount = errCount = 0;
+    document.getElementById('statTotal').textContent = '0';
+    document.getElementById('statOk').textContent    = '0';
+    document.getElementById('statErr').textContent   = '0';
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('logWrap').innerHTML = '';
+    document.getElementById('doneBanner').className = 'done-banner';
+    document.getElementById('colsHint').classList.remove('show');
+  }
+
+  function handleEvent(ev, dryRun) {
+    if (ev.type === 'columns') {
+      totalRows = ev.data.total_rows;
+      document.getElementById('statTotal').textContent = totalRows;
+      // Show matched/unmatched cols
+      const hint = document.getElementById('colsHint');
+      hint.classList.add('show');
+      const mc = document.getElementById('matchedCols');
+      mc.innerHTML = ev.data.matched.map(c =>
+        `<span class="col-tag">${c}</span>`).join('');
+      const unmatched = ev.data.unmatched || [];
+      const uw = document.getElementById('unmatchedWrap');
+      if (unmatched.length) {
+        uw.style.display = 'block';
+        document.getElementById('unmatchedCols').innerHTML =
+          unmatched.map(c => `<span class="col-tag ignored">${c}</span>`).join('');
+      }
+    }
+
+    if (ev.type === 'row_ok') {
+      okCount++;
+      document.getElementById('statOk').textContent = okCount;
+      updateBar();
+      addLog('ok', ev.data.index, ev.data.name, null, dryRun);
+    }
+
+    if (ev.type === 'row_err') {
+      errCount++;
+      document.getElementById('statErr').textContent = errCount;
+      updateBar();
+      addLog('err', ev.data.index, ev.data.name, ev.data.error);
+    }
+
+    if (ev.type === 'done') {
+      document.getElementById('progressBar').style.width = '100%';
+      const banner  = document.getElementById('doneBanner');
+      const doneMsg = document.getElementById('doneMsg');
+      const doneLink = document.getElementById('doneLink');
+      banner.classList.add('show');
+      if (dryRun) {
+        doneMsg.textContent = `Dry run terminé — ${ev.data.success} lignes validées, ${ev.data.errors} erreurs.`;
+      } else {
+        doneMsg.textContent = `Import terminé — ${ev.data.success} entrées ajoutées, ${ev.data.errors} erreurs.`;
+        doneLink.href = ev.data.notion_url;
+        doneLink.style.display = 'flex';
+      }
+    }
+
+    if (ev.type === 'error') {
+      showError(ev.data.message);
+    }
+  }
+
+  function updateBar() {
+    if (!totalRows) return;
+    const pct = Math.round(((okCount + errCount) / totalRows) * 100);
+    document.getElementById('progressBar').style.width = pct + '%';
+  }
+
+  function addLog(status, idx, name, errMsg, dryRun) {
+    const wrap = document.getElementById('logWrap');
+    const row  = document.createElement('div');
+    row.className = `log-row ${status}`;
+
+    const icon = status === 'ok'
+      ? `<svg class="log-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>`
+      : `<svg class="log-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
+    const prefix = dryRun ? '~ ' : '';
+    row.innerHTML = `
+      ${icon}
+      <span class="log-idx">${idx}</span>
+      <span class="log-name">${prefix}${escHtml(name)}</span>
+      ${errMsg ? `<span class="log-err">${escHtml(errMsg)}</span>` : ''}
+    `;
+    wrap.appendChild(row);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  function showError(msg) {
+    const banner = document.getElementById('doneBanner');
+    banner.classList.add('show', 'error-banner');
+    document.getElementById('doneMsg').textContent = '⚠ ' + msg;
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>
